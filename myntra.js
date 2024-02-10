@@ -1,6 +1,7 @@
 const express = require("express");
 const con = require("./databse");
-const auth = require("./server")
+
+const otpGenerator = require('otp-generator')
 
 const router = express.Router();
 
@@ -397,6 +398,96 @@ const register = async (req, res, next) => {
   }
 };
 
+function generateNumericOTP(length) {
+  const digits = '0123456789';
+  let otp = '';
+  for (let i = 0; i < length; i++) {
+    otp += digits[Math.floor(Math.random() * 10)];
+  }
+  return otp;
+}
+
+
+
+
+const forgetpass = async (req, res, next) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).send({
+        message: "Email required",
+      });
+    }
+    
+
+    const queryEmail = `SELECT email FROM users WHERE email = ?`;
+    const [result] = await con.promise().execute(queryEmail, [email]);
+
+    if (result.length === 0) {
+      return res.status(404).send({
+        message: "Email not found in the database",
+      });
+    }
+
+    const otp = generateNumericOTP(4);
+
+    const queryInsertOTP = `UPDATE users SET otp = ? WHERE email = ?`;
+    await con.promise().execute(queryInsertOTP, [otp, email]);
+
+    console.log("OTP:", otp);
+
+    res.status(201).send({
+      message: "OTP has been sent to your Email",
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).send({
+      message: "Internal server error",
+      error: error.message,
+    });
+  }
+};
+
+const updatepass = async (req,res,next)=>{
+  const {otp , password} = req.body ;
+  
+  try{
+
+  if(!otp && !password){
+    res.status(400).send({
+      message:"otp & password is required"
+    })
+  }
+
+  const queryCheckOTP = `SELECT * FROM users WHERE otp = ?`;
+    const [result] = await con.promise().execute(queryCheckOTP, [otp]);
+
+    if (result.length === 0 || result[0].otp !== otp) {
+      return res.status(400).send({
+        message: "Invalid OTP",
+      });
+ }
+    const userEmail = result[0].email;
+    const queryUpdatePassword = `UPDATE users SET password = ? WHERE email = ?`;
+    await con.promise().execute(queryUpdatePassword, [password, userEmail]);
+
+    const queryClearOTP = `UPDATE users SET otp = NULL WHERE email = ?`;
+    await con.promise().execute(queryClearOTP, [userEmail]);
+
+    res.status(200).send({
+      message: "Password updated successfully",
+    });
+
+
+  }catch(error){
+    res.status(500).send({
+      message:"invalid request"})
+    }
+
+
+  }
+
 
 
 const middleware = async(req,res,next) => {
@@ -424,5 +515,8 @@ router.put("/v1/wishlist/:users_id",middleware, updateWishlist);
 router.post("/v1/login", userlogin);
 router.post("/v1/register", register);
 router.get("/product", getnew);
+
+router.post("/v1/passforget", forgetpass);
+router.post("/v1/updatepass", updatepass);
 
 module.exports = router;
