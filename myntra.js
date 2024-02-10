@@ -182,7 +182,7 @@ const getWishlist = async (req, res) => {
       P.rating AS rating, W.quantity, W.is_active
 FROM wishlists AS W
 INNER JOIN products AS P ON P.product_id = W.product_id
-INNER JOIN users AS U ON U.users_id = W.user_id
+INNER JOIN users AS U ON U.users_id = W.users_id
 WHERE U.users_id = ?;
 `;
     const [result] = await con.promise().execute(queryString, [users_id]); 
@@ -196,7 +196,7 @@ WHERE U.users_id = ?;
     let countQueryString = `SELECT COUNT(U.users_id) AS count
     FROM wishlists AS W
     INNER JOIN products AS P ON P.product_id = W.product_id
-    INNER JOIN users AS U ON U.users_id = W.user_id
+    INNER JOIN users AS U ON U.users_id = W.users_id
     WHERE U.users_id = ?`;
     const [countResult] = await con
       .promise()
@@ -220,18 +220,18 @@ WHERE U.users_id = ?;
 //add wishlist
 const addWishlist = async (req, res) => {
   try {
-    const { user_id, product_id, quantity ,is_active} = req.body;
-    if (!user_id || !product_id || !is_active || !quantity) {
+    const { users_id, product_id, quantity ,is_active} = req.body;
+    if (!users_id || !product_id || !is_active || !quantity) {
       return res.status(400).send({
         message: "Bad request",
       });
     }
 
-    let queryString = `INSERT INTO wishlists (user_id, product_id, quantity, is_active)
+    let queryString = `INSERT INTO wishlists (users_id, product_id, quantity, is_active)
                          VALUES (?, ?, ?, ?)`;
     const [result] = await con
       .promise()
-      .execute(queryString, [user_id, product_id, is_active, quantity]);
+      .execute(queryString, [users_id, product_id, is_active, quantity]);
 
     res.status(201).send({
       message: "Wishlist created successfully",
@@ -397,18 +397,29 @@ const register = async (req, res, next) => {
   }
 };
 
+
+
+const middleware = async(req,res,next) => {
+  if(req.headers.users_id && req.headers.request_id){
+    next()
+  }else{
+    res.status(400).send(
+      {message:"invalid token && user_id request"})
+  }
+}
+
 // router.get("/v1/users", getAllUser);
 router.get("/v1/users/:id", getUserById);
 
 //Products routes
-router.get("/v1/products", getAllProducts);
-router.get("/v1/products/:id", getProductById);
+router.get("/v1/products",middleware, getAllProducts);
+router.get("/v1/products/:id",middleware, getProductById);
 
 //Wishlist routes
-router.get("/v1/wishlist", getWishlist);
-router.post("/v1/wishlist", addWishlist);
-router.delete("/v1/wishlist/:users_id", deleteWishlist);
-router.put("/v1/wishlist/:users_id", updateWishlist);
+router.get("/v1/wishlist",middleware, getWishlist);
+router.post("/v1/wishlist",middleware, addWishlist);
+router.delete("/v1/wishlist/:users_id",middleware, deleteWishlist);
+router.put("/v1/wishlist/:users_id",middleware, updateWishlist);
 
 router.post("/v1/login", userlogin);
 router.post("/v1/register", register);
